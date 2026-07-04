@@ -17,6 +17,7 @@ class SurahDetailScreen extends StatefulWidget {
 class _SurahDetailScreenState extends State<SurahDetailScreen> {
   final QuranService _service = QuranService();
   final ScrollController _scrollController = ScrollController();
+  late final List<GlobalKey> _ayahKeys;
   bool _isSurahBookmarked = false;
   Set<String> _bookmarkedAyahs = <String>{};
   int _currentAyah = 1;
@@ -24,6 +25,7 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _ayahKeys = List.generate(widget.detail.arabicAyahs.length, (_) => GlobalKey());
     _loadPersistedState();
   }
 
@@ -39,6 +41,11 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
     final bookmarkedAyahs = await _service.getBookmarkedAyahs();
     final lastRead = await _service.getLastRead();
 
+    final initialAyah = widget.initialAyahNumber ?? 1;
+    final currentAyah = (lastRead != null && lastRead['surahNumber'] == widget.detail.summary.number)
+        ? (lastRead['ayahNumber'] as int? ?? initialAyah)
+        : initialAyah;
+
     if (!mounted) {
       return;
     }
@@ -46,7 +53,7 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
     setState(() {
       _isSurahBookmarked = isBookmarked;
       _bookmarkedAyahs = bookmarkedAyahs;
-      _currentAyah = (lastRead?['ayahNumber'] as int? ?? widget.initialAyahNumber ?? 1);
+      _currentAyah = currentAyah;
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -84,9 +91,21 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
 
   void _scrollToAyah(int ayahNumber) {
     final index = ayahNumber - 1;
-    if (index < 0 || index >= widget.detail.arabicAyahs.length) {
+    if (index < 0 || index >= _ayahKeys.length) {
       return;
     }
+
+    final targetContext = _ayahKeys[index].currentContext;
+    if (targetContext != null) {
+      Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.1,
+      );
+      return;
+    }
+
     _scrollController.animateTo(
       index * 140.0,
       duration: const Duration(milliseconds: 300),
@@ -177,39 +196,42 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                             : QuranAyah(number: index + 1, numberInSurah: index + 1, juz: 0, text: '');
                         final isAyahBookmarked = _bookmarkedAyahs.contains('${summary.number}:${arab.numberInSurah}');
 
-                        return Card(
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          child: InkWell(
-                            onTap: () => _markLastRead(arab.numberInSurah),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          'Ayat ${arab.numberInSurah}',
-                                          style: TextStyle(color: Colors.grey[600]),
+                        return Container(
+                          key: _ayahKeys[index],
+                          child: Card(
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            child: InkWell(
+                              onTap: () => _markLastRead(arab.numberInSurah),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            'Ayat ${arab.numberInSurah}',
+                                            style: TextStyle(color: Colors.grey[600]),
+                                          ),
                                         ),
-                                      ),
-                                      IconButton(
-                                        icon: Icon(isAyahBookmarked ? Icons.bookmark : Icons.bookmark_border),
-                                        onPressed: () => _toggleAyahBookmark(arab.numberInSurah),
-                                        tooltip: 'Bookmark ayat',
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(arab.text, textAlign: TextAlign.right, style: const TextStyle(fontSize: 20, height: 1.6)),
-                                  const SizedBox(height: 8),
-                                  Text(translit.text, style: const TextStyle(fontSize: 14, color: Colors.black87)),
-                                  const SizedBox(height: 6),
-                                  Text(translation.text, style: const TextStyle(fontSize: 14, color: Colors.black54)),
-                                ],
+                                        IconButton(
+                                          icon: Icon(isAyahBookmarked ? Icons.bookmark : Icons.bookmark_border),
+                                          onPressed: () => _toggleAyahBookmark(arab.numberInSurah),
+                                          tooltip: 'Bookmark ayat',
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(arab.text, textAlign: TextAlign.right, style: const TextStyle(fontSize: 20, height: 1.6)),
+                                    const SizedBox(height: 8),
+                                    Text(translit.text, style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                                    const SizedBox(height: 6),
+                                    Text(translation.text, style: const TextStyle(fontSize: 14, color: Colors.black54)),
+                                  ],
+                                ),
                               ),
                             ),
                           ),

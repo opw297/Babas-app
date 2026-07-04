@@ -14,7 +14,7 @@ class QuranService {
 
   Future<List<QuranSurahSummary>> fetchSurahs() async {
     try {
-      final raw = await rootBundle.loadString('assets/data/quran_all_complete.json');
+      final raw = await rootBundle.loadString('assets/data/quran_complete.json');
       final decoded = jsonDecode(raw);
       final data = decoded is Map<String, dynamic> ? decoded['data'] : null;
       if (data is List) {
@@ -23,16 +23,8 @@ class QuranService {
             .map(QuranSurahSummary.fromJson)
             .toList();
       }
-    } catch (_) {}
-
-    final fallback = await rootBundle.loadString('assets/data/quran_complete.json');
-    final decoded = jsonDecode(fallback);
-    final data = decoded is Map<String, dynamic> ? decoded['data'] : null;
-    if (data is List) {
-      return data
-          .whereType<Map<String, dynamic>>()
-          .map(QuranSurahSummary.fromJson)
-          .toList();
+    } catch (_) {
+      // If the complete dataset is unavailable, return an empty catalog.
     }
 
     return <QuranSurahSummary>[];
@@ -53,7 +45,7 @@ class QuranService {
     );
 
     try {
-      final raw = await rootBundle.loadString('assets/data/quran_all_complete.json');
+      final raw = await rootBundle.loadString('assets/data/quran_complete.json');
       final decoded = jsonDecode(raw);
       final data = decoded is Map<String, dynamic> ? decoded['data'] : null;
       if (data is List) {
@@ -67,36 +59,45 @@ class QuranService {
           final arabic = ayahs
               .whereType<Map<String, dynamic>>()
               .map(
-                (entry) => QuranAyah(
-                  number: _parseInt(entry['number']),
-                  numberInSurah: _parseInt(entry['number']),
-                  juz: 0,
-                  text: entry['arab']?.toString() ?? '',
-                ),
+                (entry) {
+                  final numberInSurah = _parseInt(entry['numberInSurah']);
+                  return QuranAyah(
+                    number: _parseInt(entry['number']),
+                    numberInSurah: numberInSurah > 0 ? numberInSurah : _parseInt(entry['number']),
+                    juz: _parseInt(entry['juz']),
+                    text: entry['arab']?.toString() ?? '',
+                  );
+                },
               )
               .toList();
 
           final translit = ayahs
               .whereType<Map<String, dynamic>>()
               .map(
-                (entry) => QuranAyah(
-                  number: _parseInt(entry['number']),
-                  numberInSurah: _parseInt(entry['number']),
-                  juz: 0,
-                  text: entry['latin']?.toString() ?? '',
-                ),
+                (entry) {
+                  final numberInSurah = _parseInt(entry['numberInSurah']);
+                  return QuranAyah(
+                    number: _parseInt(entry['number']),
+                    numberInSurah: numberInSurah > 0 ? numberInSurah : _parseInt(entry['number']),
+                    juz: _parseInt(entry['juz']),
+                    text: entry['latin']?.toString() ?? '',
+                  );
+                },
               )
               .toList();
 
           final translation = ayahs
               .whereType<Map<String, dynamic>>()
               .map(
-                (entry) => QuranAyah(
-                  number: _parseInt(entry['number']),
-                  numberInSurah: _parseInt(entry['number']),
-                  juz: 0,
-                  text: entry['translation']?.toString() ?? '',
-                ),
+                (entry) {
+                  final numberInSurah = _parseInt(entry['numberInSurah']);
+                  return QuranAyah(
+                    number: _parseInt(entry['number']),
+                    numberInSurah: numberInSurah > 0 ? numberInSurah : _parseInt(entry['number']),
+                    juz: _parseInt(entry['juz']),
+                    text: entry['translation']?.toString() ?? '',
+                  );
+                },
               )
               .toList();
 
@@ -108,7 +109,9 @@ class QuranService {
           );
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      // Keep the surah summary if the detail data cannot be loaded.
+    }
 
     return SurahDetail(
       summary: summary,

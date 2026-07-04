@@ -95,6 +95,7 @@ class _QuranScreenState extends State<QuranScreen> {
                   return surah.name.toLowerCase().contains(query) ||
                       surah.englishName.toLowerCase().contains(query) ||
                       surah.englishNameTranslation.toLowerCase().contains(query) ||
+                      surah.revelationType.toLowerCase().contains(query) ||
                       surah.number.toString().contains(query);
                 }).toList();
 
