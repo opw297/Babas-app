@@ -1,71 +1,199 @@
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/quran_model.dart';
 
 class QuranService {
+  static const String _lastReadSurahKey = 'last_read_surah_number';
+  static const String _lastReadAyahKey = 'last_read_ayah_number';
+  static const String _lastReadNameKey = 'last_read_surah_name';
+  static const String _bookmarkedSurahKey = 'bookmarked_surahs';
+  static const String _bookmarkedAyahKey = 'bookmarked_ayahs';
+
   Future<List<QuranSurahSummary>> fetchSurahs() async {
-    final raw = await rootBundle.loadString('assets/data/quran_complete.json');
-    final Map<String, dynamic> json = jsonDecode(raw);
-    final List data = json['data'] as List? ?? [];
-    return data.map((e) => QuranSurahSummary.fromJson(e as Map<String, dynamic>)).toList();
+    try {
+      final raw = await rootBundle.loadString('assets/data/quran_all_complete.json');
+      final decoded = jsonDecode(raw);
+      final data = decoded is Map<String, dynamic> ? decoded['data'] : null;
+      if (data is List) {
+        return data
+            .whereType<Map<String, dynamic>>()
+            .map(QuranSurahSummary.fromJson)
+            .toList();
+      }
+    } catch (_) {}
+
+    final fallback = await rootBundle.loadString('assets/data/quran_complete.json');
+    final decoded = jsonDecode(fallback);
+    final data = decoded is Map<String, dynamic> ? decoded['data'] : null;
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map(QuranSurahSummary.fromJson)
+          .toList();
+    }
+
+    return <QuranSurahSummary>[];
   }
 
   Future<SurahDetail> fetchSurahDetail(int number) async {
-    // Try to load per-surah file; if not present return empty lists with summary only
     final summaryList = await fetchSurahs();
-    final summary = summaryList.firstWhere((s) => s.number == number, orElse: () => QuranSurahSummary(number: number, name: 'Surah $number', englishName: 'Surah $number', englishNameTranslation: '', revelationType: '', numberOfAyahs: 0));
+    final summary = summaryList.firstWhere(
+      (surah) => surah.number == number,
+      orElse: () => QuranSurahSummary(
+        number: number,
+        name: 'Surah $number',
+        englishName: 'Surah $number',
+        englishNameTranslation: '',
+        revelationType: '',
+        numberOfAyahs: 0,
+      ),
+    );
 
-    final path = 'assets/data/surah_$number.json';
     try {
-      final raw = await rootBundle.loadString(path);
-      final Map<String, dynamic> json = jsonDecode(raw);
-      final List ayahs = json['ayahs'] as List? ?? [];
+      final raw = await rootBundle.loadString('assets/data/quran_all_complete.json');
+      final decoded = jsonDecode(raw);
+      final data = decoded is Map<String, dynamic> ? decoded['data'] : null;
+      if (data is List) {
+        final surahJson = data.whereType<Map<String, dynamic>>().firstWhere(
+          (entry) => _parseInt(entry['number']) == number,
+          orElse: () => <String, dynamic>{},
+        );
 
-      final arabic = ayahs
-          .asMap()
-          .entries
-          .map((entry) => QuranAyah(
-                number: entry.value['number'] ?? entry.key + 1,
-                numberInSurah: entry.value['number'] ?? entry.key + 1,
-                juz: entry.value['juz'] ?? 0,
-                text: entry.value['arab'] ?? '',
-              ))
-          .toList();
+        if (surahJson.isNotEmpty) {
+          final ayahs = surahJson['ayahs'] is List ? surahJson['ayahs'] as List : <dynamic>[];
+          final arabic = ayahs
+              .whereType<Map<String, dynamic>>()
+              .map(
+                (entry) => QuranAyah(
+                  number: _parseInt(entry['number']),
+                  numberInSurah: _parseInt(entry['number']),
+                  juz: 0,
+                  text: entry['arab']?.toString() ?? '',
+                ),
+              )
+              .toList();
 
-      final translit = ayahs
-          .asMap()
-          .entries
-          .map((entry) => QuranAyah(
-                number: entry.value['number'] ?? entry.key + 1,
-                numberInSurah: entry.value['number'] ?? entry.key + 1,
-                juz: entry.value['juz'] ?? 0,
-                text: entry.value['latin'] ?? '',
-              ))
-          .toList();
+          final translit = ayahs
+              .whereType<Map<String, dynamic>>()
+              .map(
+                (entry) => QuranAyah(
+                  number: _parseInt(entry['number']),
+                  numberInSurah: _parseInt(entry['number']),
+                  juz: 0,
+                  text: entry['latin']?.toString() ?? '',
+                ),
+              )
+              .toList();
 
-      final translation = ayahs
-          .asMap()
-          .entries
-          .map((entry) => QuranAyah(
-                number: entry.value['number'] ?? entry.key + 1,
-                numberInSurah: entry.value['number'] ?? entry.key + 1,
-                juz: entry.value['juz'] ?? 0,
-                text: entry.value['translation'] ?? '',
-              ))
-          .toList();
+          final translation = ayahs
+              .whereType<Map<String, dynamic>>()
+              .map(
+                (entry) => QuranAyah(
+                  number: _parseInt(entry['number']),
+                  numberInSurah: _parseInt(entry['number']),
+                  juz: 0,
+                  text: entry['translation']?.toString() ?? '',
+                ),
+              )
+              .toList();
 
-      return SurahDetail(
-        summary: summary,
-        arabicAyahs: arabic,
-        transliterationAyahs: translit,
-        translationAyahs: translation,
-      );
-    } catch (e) {
-      return SurahDetail(summary: summary, arabicAyahs: [], transliterationAyahs: [], translationAyahs: []);
+          return SurahDetail(
+            summary: summary,
+            arabicAyahs: arabic,
+            transliterationAyahs: translit,
+            translationAyahs: translation,
+          );
+        }
+      }
+    } catch (_) {}
+
+    return SurahDetail(
+      summary: summary,
+      arabicAyahs: const <QuranAyah>[],
+      transliterationAyahs: const <QuranAyah>[],
+      translationAyahs: const <QuranAyah>[],
+    );
+  }
+
+  Future<void> saveLastRead(int surahNumber, int ayahNumber, String surahName) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_lastReadSurahKey, surahNumber);
+    await prefs.setInt(_lastReadAyahKey, ayahNumber);
+    await prefs.setString(_lastReadNameKey, surahName);
+  }
+
+  Future<Map<String, dynamic>?> getLastRead() async {
+    final prefs = await SharedPreferences.getInstance();
+    final surahNumber = prefs.getInt(_lastReadSurahKey);
+    if (surahNumber == null) {
+      return null;
     }
+    return <String, dynamic>{
+      'surahNumber': surahNumber,
+      'ayahNumber': prefs.getInt(_lastReadAyahKey) ?? 1,
+      'surahName': prefs.getString(_lastReadNameKey) ?? 'Surah $surahNumber',
+    };
+  }
+
+  Future<void> toggleSurahBookmark(int surahNumber) async {
+    final prefs = await SharedPreferences.getInstance();
+    final bookmarks = prefs.getStringList(_bookmarkedSurahKey) ?? <String>[];
+    final key = surahNumber.toString();
+    if (bookmarks.contains(key)) {
+      bookmarks.remove(key);
+    } else {
+      bookmarks.add(key);
+    }
+    await prefs.setStringList(_bookmarkedSurahKey, bookmarks);
+  }
+
+  Future<bool> isSurahBookmarked(int surahNumber) async {
+    final prefs = await SharedPreferences.getInstance();
+    final bookmarks = prefs.getStringList(_bookmarkedSurahKey) ?? <String>[];
+    return bookmarks.contains(surahNumber.toString());
+  }
+
+  Future<Set<int>> getBookmarkedSurahs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bookmarks = prefs.getStringList(_bookmarkedSurahKey) ?? <String>[];
+    return bookmarks.map(int.parse).toSet();
+  }
+
+  Future<void> toggleAyahBookmark(int surahNumber, int ayahNumber) async {
+    final prefs = await SharedPreferences.getInstance();
+    final bookmarks = prefs.getStringList(_bookmarkedAyahKey) ?? <String>[];
+    final key = '$surahNumber:$ayahNumber';
+    if (bookmarks.contains(key)) {
+      bookmarks.remove(key);
+    } else {
+      bookmarks.add(key);
+    }
+    await prefs.setStringList(_bookmarkedAyahKey, bookmarks);
+  }
+
+  Future<bool> isAyahBookmarked(int surahNumber, int ayahNumber) async {
+    final prefs = await SharedPreferences.getInstance();
+    final bookmarks = prefs.getStringList(_bookmarkedAyahKey) ?? <String>[];
+    return bookmarks.contains('$surahNumber:$ayahNumber');
+  }
+
+  Future<Set<String>> getBookmarkedAyahs() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList(_bookmarkedAyahKey) ?? <String>[]).toSet();
   }
 
   Future<void> dispose() async {}
+
+  int _parseInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is String) {
+      return int.tryParse(value) ?? 0;
+    }
+    return 0;
+  }
 }

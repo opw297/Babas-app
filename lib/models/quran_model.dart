@@ -53,7 +53,11 @@ class QuranAyah {
           ? json['numberInSurah'] as int
           : int.tryParse('${json['numberInSurah']}') ?? 0,
       juz: json['juz'] is int ? json['juz'] as int : int.tryParse('${json['juz']}') ?? 0,
-      text: json['text']?.toString() ?? '',
+      text: json['text']?.toString() ??
+          json['arab']?.toString() ??
+          json['latin']?.toString() ??
+          json['translation']?.toString() ??
+          '',
     );
   }
 }
