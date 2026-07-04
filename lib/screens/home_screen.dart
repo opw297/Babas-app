@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'quran_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
         const HomeScreen({super.key});
@@ -81,6 +82,10 @@ Widget menuTile(BuildContext context, String title) {
                         onTap: () {
                                 if (title.contains("Al-Qur'an")) {
                                         Navigator.push(context, MaterialPageRoute(builder: (_) => const QuranScreen()));
+                                        return;
+                                }
+                                if (title.contains("Pengaturan")) {
+                                        Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
                                         return;
                                 }
                                 // default: do nothing (preserve existing navigation behavior)
